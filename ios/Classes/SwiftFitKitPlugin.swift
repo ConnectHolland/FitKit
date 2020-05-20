@@ -149,7 +149,8 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
                     "date_from": Int(sample.startDate.timeIntervalSince1970 * 1000),
                     "date_to": Int(sample.endDate.timeIntervalSince1970 * 1000),
                     "source": self.readSource(sample: sample),
-                    "user_entered": sample.metadata?[HKMetadataKeyWasUserEntered] as? Bool == true
+                    "user_entered": sample.metadata?[HKMetadataKeyWasUserEntered] as? Bool == true,
+                    "product_type": self.readProductType(sample: sample),
                 ]
             })
         }
@@ -172,5 +173,13 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
         }
 
         return sample.source.name;
+    }
+    
+    private func readProductType(sample: HKSample) -> String? {
+        if #available(iOS 11, *) {
+            return sample.sourceRevision.productType;
+        }
+
+        return nil;
     }
 }
