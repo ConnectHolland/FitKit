@@ -220,7 +220,7 @@ class FitKitPlugin(private val registrar: Registrar) : MethodCallHandler {
                 "date_to" to dataPoint.getEndTime(TimeUnit.MILLISECONDS),
                 "source" to source,
                 "user_entered" to (source == "user_input"),
-                "product_type" to null
+                "product_type" to ""
         )
     }
 

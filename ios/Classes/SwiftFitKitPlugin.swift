@@ -175,11 +175,11 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
         return sample.source.name;
     }
     
-    private func readProductType(sample: HKSample) -> String? {
+    private func readProductType(sample: HKSample) -> String {
         if #available(iOS 11, *) {
-            return sample.sourceRevision.productType;
+            return sample.sourceRevision.productType ?? "";
         }
 
-        return nil;
+        return "";
     }
 }
