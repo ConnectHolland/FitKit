@@ -223,7 +223,7 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
                     "user_entered": false,
                     // TODO: Remove ProductType
                     "product_type": ""
-                ]
+                ] as NSDictionary
             )
             
         }
