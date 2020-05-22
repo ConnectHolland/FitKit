@@ -212,20 +212,18 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
                 return
             }
             
-            result(
-                [
-                    "value": self.readStatisticsValue(statistics: statistics, unit: request.unit),
-                    "date_from": Int(statistics.startDate.timeIntervalSince1970 * 1000),
-                    "date_to": Int(statistics.endDate.timeIntervalSince1970 * 1000),
-                    // TODO: HKStatistics contains array of sources. Discuss what to return here. For now, just return empty string.
-                    "source": "",
-                    // TODO: Probably can be removed.
-                    "user_entered": false,
-                    // TODO: Remove ProductType
-                    "product_type": ""
-                ] as NSDictionary
-            )
-            
+            let dict = NSDictionary(dictionary: [
+                "value": self.readStatisticsValue(statistics: statistics, unit: request.unit),
+                "date_from": Int(statistics.startDate.timeIntervalSince1970 * 1000),
+                "date_to": Int(statistics.endDate.timeIntervalSince1970 * 1000),
+                // TODO: HKStatistics contains array of sources. Discuss what to return here. For now, just return empty string.
+                "source": "",
+                // TODO: Probably can be removed.
+                "user_entered": false,
+                // TODO: Remove ProductType
+                "product_type": ""
+            ])
+            result([dict])
         }
         
         return statisticsQuery
