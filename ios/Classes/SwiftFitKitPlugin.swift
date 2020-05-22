@@ -127,8 +127,54 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
         print("readSample: \(request.type)")
 
         let predicate = HKQuery.predicateForSamples(withStart: request.dateFrom, end: request.dateTo, options: .strictStartDate)
-        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: request.limit == nil)
+        
+        let query: HKQuery
+        if let quantityType = HKObjectType.quantityType(forIdentifier: HKQuantityTypeIdentifier(rawValue: request.sampleType.identifier)) {
+            query = createStatisticsQuery(request: request, quantityType: quantityType, predicate: predicate, result: result)
+        } else {
+            query = createSampleQuery(request: request, predicate: predicate, result: result)
+        }
+        
+        healthStore!.execute(query)
+    }
 
+    private func readValue(sample: HKSample, unit: HKUnit) -> Any {
+        if let sample = sample as? HKQuantitySample {
+            return sample.quantity.doubleValue(for: unit)
+        } else if let sample = sample as? HKCategorySample {
+            return sample.value
+        }
+
+        return -1
+    }
+    
+    private func readStatisticsValue(statistics: HKStatistics, unit: HKUnit) -> Any {
+        if let quantity = statistics.sumQuantity() {
+            return quantity.doubleValue(for: unit)
+        }
+        
+        return -1
+    }
+
+    private func readSource(sample: HKSample) -> String {
+        if #available(iOS 9, *) {
+            return sample.sourceRevision.source.name;
+        }
+
+        return sample.source.name;
+    }
+    
+    private func readProductType(sample: HKSample) -> String {
+        if #available(iOS 11, *) {
+            return sample.sourceRevision.productType ?? "";
+        }
+
+        return "";
+    }
+    
+    private func createSampleQuery(request: ReadRequest, predicate: NSPredicate, result: @escaping FlutterResult) -> HKSampleQuery {
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: request.limit == nil)
+        
         let query = HKSampleQuery(sampleType: request.sampleType, predicate: predicate, limit: request.limit ?? HKObjectQueryNoLimit, sortDescriptors: [sortDescriptor]) {
             _, samplesOrNil, error in
 
@@ -154,32 +200,35 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
                 ]
             })
         }
-        healthStore!.execute(query)
-    }
-
-    private func readValue(sample: HKSample, unit: HKUnit) -> Any {
-        if let sample = sample as? HKQuantitySample {
-            return sample.quantity.doubleValue(for: unit)
-        } else if let sample = sample as? HKCategorySample {
-            return sample.value
-        }
-
-        return -1
-    }
-
-    private func readSource(sample: HKSample) -> String {
-        if #available(iOS 9, *) {
-            return sample.sourceRevision.source.name;
-        }
-
-        return sample.source.name;
+        return query
     }
     
-    private func readProductType(sample: HKSample) -> String {
-        if #available(iOS 11, *) {
-            return sample.sourceRevision.productType ?? "";
+    private func createStatisticsQuery(request: ReadRequest, quantityType: HKQuantityType, predicate: NSPredicate, result: @escaping FlutterResult) -> HKStatisticsQuery {
+        
+        let statisticsQuery = HKStatisticsQuery(quantityType: quantityType, quantitySamplePredicate: predicate, options: .cumulativeSum) {
+            _, statisticsOrNil, error in
+            guard let statistics = statisticsOrNil else {
+                result(FlutterError(code: self.TAG, message: "Results are null", details: error))
+                return
+            }
+            
+            result(
+                [
+                    "value": self.readStatisticsValue(statistics: statistics, unit: request.unit),
+                    "date_from": Int(statistics.startDate.timeIntervalSince1970 * 1000),
+                    "date_to": Int(statistics.endDate.timeIntervalSince1970 * 1000),
+                    // TODO: HKStatistics contains array of sources. Discuss what to return here. For now, just return empty string.
+                    "source": "",
+                    // TODO: Probably can be removed.
+                    "user_entered": false,
+                    // TODO: Remove ProductType
+                    "product_type": ""
+                ]
+            )
+            
         }
-
-        return "";
+        
+        return statisticsQuery
+        
     }
 }
