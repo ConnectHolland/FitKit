@@ -3,27 +3,27 @@ import UIKit
 import HealthKit
 
 public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
-
+    
     private let TAG = "FitKit";
-
+    
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(name: "fit_kit", binaryMessenger: registrar.messenger())
         let instance = SwiftFitKitPlugin()
         registrar.addMethodCallDelegate(instance, channel: channel)
     }
-
+    
     private var healthStore: HKHealthStore? = nil;
-
+    
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard HKHealthStore.isHealthDataAvailable() else {
             result(FlutterError(code: TAG, message: "Not supported", details: nil))
             return
         }
-
+        
         if (healthStore == nil) {
             healthStore = HKHealthStore();
         }
-
+        
         do {
             if (call.method == "hasPermissions") {
                 let request = try PermissionsRequest.fromCall(call: call)
@@ -43,20 +43,20 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
             result(FlutterError(code: TAG, message: "Error \(error)", details: nil))
         }
     }
-
-
+    
+    
     /**
-    * On iOS you can only know if user has responded to request access screen.
-    * Not possible to tell if he has allowed access to read.
-    *
-    *   # getRequestStatusForAuthorization #
-    *   If "status == unnecessary" means if requestAuthorization will be called request access screen will not be shown.
-    *   So user has already responded to request access screen and kinda has permissions.
-    *
-    *   # authorizationStatus #
-    *   If "status == notDetermined" user has not responded to request access screen.
-    *   Once he responds no matter of the result status will be sharingDenied.
-    */
+     * On iOS you can only know if user has responded to request access screen.
+     * Not possible to tell if he has allowed access to read.
+     *
+     *   # getRequestStatusForAuthorization #
+     *   If "status == unnecessary" means if requestAuthorization will be called request access screen will not be shown.
+     *   So user has already responded to request access screen and kinda has permissions.
+     *
+     *   # authorizationStatus #
+     *   If "status == notDetermined" user has not responded to request access screen.
+     *   Once he responds no matter of the result status will be sharingDenied.
+     */
     private func hasPermissions(request: PermissionsRequest, result: @escaping FlutterResult) {
         if #available(iOS 12.0, *) {
             healthStore!.getRequestStatusForAuthorization(toShare: [], read: Set(request.sampleTypes)) { (status, error) in
@@ -64,87 +64,96 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
                     result(FlutterError(code: self.TAG, message: "hasPermissions", details: error))
                     return
                 }
-
+                
                 guard status == HKAuthorizationRequestStatus.unnecessary else {
                     result(false)
                     return
                 }
-
+                
                 result(true)
             }
         } else {
             let authorized = request.sampleTypes.map {
-                        healthStore!.authorizationStatus(for: $0)
-                    }
-                    .allSatisfy {
-                        $0 != HKAuthorizationStatus.notDetermined
-                    }
+                healthStore!.authorizationStatus(for: $0)
+            }
+            .allSatisfy {
+                $0 != HKAuthorizationStatus.notDetermined
+            }
             result(authorized)
         }
     }
-
+    
     private func requestPermissions(request: PermissionsRequest, result: @escaping FlutterResult) {
         requestAuthorization(sampleTypes: request.sampleTypes) { success, error in
             guard success else {
                 result(false)
                 return
             }
-
+            
             result(true)
         }
     }
-
+    
     /**
-    * Not supported by HealthKit.
-    */
+     * Not supported by HealthKit.
+     */
     private func revokePermissions(result: @escaping FlutterResult) {
         result(nil)
     }
-
+    
     private func read(request: ReadRequest, result: @escaping FlutterResult) {
         requestAuthorization(sampleTypes: [request.sampleType]) { success, error in
             guard success else {
                 result(error)
                 return
             }
-
+            
             self.readSample(request: request, result: result)
         }
     }
-
+    
     private func requestAuthorization(sampleTypes: Array<HKSampleType>, completion: @escaping (Bool, FlutterError?) -> Void) {
         healthStore!.requestAuthorization(toShare: nil, read: Set(sampleTypes)) { (success, error) in
             guard success else {
                 completion(false, FlutterError(code: self.TAG, message: "Error \(error?.localizedDescription ?? "empty")", details: nil))
                 return
             }
-
+            
             completion(true, nil)
         }
     }
-
+    
     private func readSample(request: ReadRequest, result: @escaping FlutterResult) {
         print("readSample: \(request.type)")
-
-        let predicate = HKQuery.predicateForSamples(withStart: request.dateFrom, end: request.dateTo, options: .strictStartDate)
         
-        let query: HKQuery
-        if let quantityType = HKObjectType.quantityType(forIdentifier: HKQuantityTypeIdentifier(rawValue: request.sampleType.identifier)) {
-            query = createStatisticsQuery(request: request, quantityType: quantityType, predicate: predicate, result: result)
-        } else {
-            query = createSampleQuery(request: request, predicate: predicate, result: result)
+        configureSourcePredicate(sampleType: request.sampleType) { [weak self] sourcePredicate in
+            guard let strongSelf = self else { return }
+            
+            var predicate = HKQuery.predicateForSamples(withStart: request.dateFrom, end: request.dateTo, options: .strictStartDate)
+            
+            if let sourcePredicate = sourcePredicate {
+                predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [predicate, sourcePredicate])
+            }
+            
+            let query: HKQuery
+            if let quantityType = HKObjectType.quantityType(forIdentifier: HKQuantityTypeIdentifier(rawValue: request.sampleType.identifier)) {
+                query = strongSelf.createStatisticsQuery(request: request, quantityType: quantityType, predicate: predicate, result: result)
+            } else {
+                query = strongSelf.createSampleQuery(request: request, predicate: predicate, result: result)
+            }
+            
+            strongSelf.healthStore!.execute(query)
         }
         
-        healthStore!.execute(query)
     }
-
+    
     private func readValue(sample: HKSample, unit: HKUnit) -> Any {
         if let sample = sample as? HKQuantitySample {
             return sample.quantity.doubleValue(for: unit)
         } else if let sample = sample as? HKCategorySample {
             return sample.value
         }
-
+        
         return -1
     }
     
@@ -155,12 +164,12 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
         
         return -1
     }
-
+    
     private func readSource(sample: HKSample) -> String {
         if #available(iOS 9, *) {
             return sample.sourceRevision.source.name;
         }
-
+        
         return sample.source.name;
     }
     
@@ -168,7 +177,7 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
         if #available(iOS 11, *) {
             return sample.sourceRevision.productType ?? "";
         }
-
+        
         return "";
     }
     
@@ -177,17 +186,17 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
         
         let query = HKSampleQuery(sampleType: request.sampleType, predicate: predicate, limit: request.limit ?? HKObjectQueryNoLimit, sortDescriptors: [sortDescriptor]) {
             _, samplesOrNil, error in
-
+            
             guard var samples = samplesOrNil else {
                 result(FlutterError(code: self.TAG, message: "Results are null", details: error))
                 return
             }
-
+            
             if (request.limit != nil) {
                 // if limit is used sort back to ascending
                 samples = samples.sorted(by: { $0.startDate.compare($1.startDate) == .orderedAscending })
             }
-
+            
             print(samples)
             result(samples.map { sample -> NSDictionary in
                 [
@@ -228,5 +237,28 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
         
         return statisticsQuery
         
+    }
+    
+    private func configureSourcePredicate(sampleType: HKSampleType, completion: @escaping(NSPredicate?) -> Void) {
+        let appleHealth = "com.apple.health"
+        var deviceSources = Set<HKSource>()
+        
+        let sourceQuery = HKSourceQuery(sampleType: sampleType, samplePredicate: nil) { query, sources, error in
+            guard let sources = sources,
+                sources.isEmpty == false,
+                error != nil
+                else {
+                    completion(nil)
+                    return
+            }
+            
+            sources.forEach { source in
+                if source.bundleIdentifier.lowercased().hasPrefix(appleHealth) {
+                    deviceSources.insert(source)
+                }
+            }
+            completion(HKQuery.predicateForObjects(from: deviceSources))
+        }
+        healthStore!.execute(sourceQuery)
     }
 }
