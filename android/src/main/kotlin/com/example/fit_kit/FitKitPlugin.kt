@@ -89,10 +89,26 @@ class FitKitPlugin(private val registrar: Registrar) : MethodCallHandler {
                 .build()
 
         requestOAuthPermissions(options, {
+            startRecording(request.types)
             result.success(true)
         }, {
             result.success(false)
         })
+    }
+
+    private fun startRecording(types: List<Type>) {
+        // Start recording step count data if not yet the case.
+        val recordingClient = Fitness.getRecordingClient(registrar.context(), GoogleSignIn.getLastSignedInAccount(registrar.context())!!)
+
+        types.forEach { type ->
+            recordingClient.listSubscriptions(type.dataType).addOnSuccessListener {
+                if (it.isEmpty()) {
+                    recordingClient.subscribe(type.dataType).addOnSuccessListener {
+                        Log.d(TAG, "Subscribe to step count recording.")
+                    }
+                }
+            }
+        }
     }
 
     /**
