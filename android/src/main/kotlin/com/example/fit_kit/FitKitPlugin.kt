@@ -6,10 +6,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.fitness.Fitness
 import com.google.android.gms.fitness.FitnessOptions
-import com.google.android.gms.fitness.data.DataPoint
-import com.google.android.gms.fitness.data.DataSet
-import com.google.android.gms.fitness.data.Field
-import com.google.android.gms.fitness.data.Session
+import com.google.android.gms.fitness.data.*
 import com.google.android.gms.fitness.request.DataReadRequest
 import com.google.android.gms.fitness.request.SessionReadRequest
 import com.google.android.gms.fitness.result.DataReadResponse
@@ -176,14 +173,27 @@ class FitKitPlugin(private val registrar: Registrar) : MethodCallHandler {
     private fun readSample(request: ReadRequest<Type.Sample>, result: Result) {
         Log.d(TAG, "readSample: ${request.type}")
 
-        val readRequest = DataReadRequest.Builder()
-                .read(request.type.dataType)
-                .also { builder ->
-                    when (request.limit != null) {
-                        true -> builder.setLimit(request.limit)
-                        else -> builder.bucketByTime(1, TimeUnit.DAYS)
-                    }
-                }
+        val readRequestBuilder = DataReadRequest.Builder()
+
+        if (request.type.dataType == DataType.TYPE_STEP_COUNT_DELTA) {
+            val estimatedStepDeltas: DataSource = DataSource.Builder()
+                    .setDataType(DataType.TYPE_STEP_COUNT_DELTA)
+                    .setType(DataSource.TYPE_DERIVED)
+                    .setStreamName("estimated_steps")
+                    .setAppPackageName("com.google.android.gms")
+                    .build()
+
+            readRequestBuilder.aggregate(estimatedStepDeltas, request.type.dataType)
+        } else {
+            readRequestBuilder.read(request.type.dataType)
+        }
+
+        val readRequest = readRequestBuilder.also { builder ->
+            when (request.limit != null) {
+                true -> builder.setLimit(request.limit)
+                else -> builder.bucketByTime(1, TimeUnit.DAYS)
+            }
+        }
                 .setTimeRange(request.dateFrom.time, request.dateTo.time, TimeUnit.MILLISECONDS)
                 .enableServerQueries()
                 .build()
