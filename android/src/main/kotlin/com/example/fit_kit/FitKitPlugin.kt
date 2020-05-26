@@ -93,6 +93,8 @@ class FitKitPlugin(private val registrar: Registrar) : MethodCallHandler {
             result.success(true)
         }, {
             result.success(false)
+        }, { resultCode ->
+            result.error(TAG, "An unknown error occurred when requesting OAuth permissions. Result code = $resultCode", null)
         })
     }
 
@@ -154,11 +156,13 @@ class FitKitPlugin(private val registrar: Registrar) : MethodCallHandler {
                 is ReadRequest.Activity -> readSession(request, result)
             }
         }, {
+            result.error(TAG, "User canceled permission access request", null)
+        }, { resultCode ->
             result.error(TAG, "User denied permission access", null)
         })
     }
 
-    private fun requestOAuthPermissions(fitnessOptions: FitnessOptions, onSuccess: () -> Unit, onError: () -> Unit) {
+    private fun requestOAuthPermissions(fitnessOptions: FitnessOptions, onSuccess: () -> Unit, onCanceled: () -> Unit, onError: (resultCode: Int) -> Unit) {
         if (hasOAuthPermission(fitnessOptions)) {
             onSuccess()
             return
@@ -168,8 +172,10 @@ class FitKitPlugin(private val registrar: Registrar) : MethodCallHandler {
             override fun onOAuthPermissionsResult(resultCode: Int) {
                 if (resultCode == Activity.RESULT_OK) {
                     onSuccess()
+                } else if (resultCode == Activity.RESULT_CANCELED) {
+                    onCanceled()
                 } else {
-                    onError()
+                    onError(resultCode)
                 }
                 oAuthPermissionListeners.remove(this)
             }
