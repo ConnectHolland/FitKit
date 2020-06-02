@@ -154,7 +154,7 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
             return sample.value
         }
         
-        return -1
+        return 0
     }
     
     private func readStatisticsValue(statistics: HKStatistics, unit: HKUnit) -> Any {
@@ -162,7 +162,7 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
             return quantity.doubleValue(for: unit)
         }
         
-        return -1
+        return 0
     }
     
     private func readSource(sample: HKSample) -> String {
@@ -216,7 +216,13 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
         
         let statisticsQuery = HKStatisticsQuery(quantityType: quantityType, quantitySamplePredicate: predicate, options: .cumulativeSum) {
             _, statisticsOrNil, error in
-            guard let statistics = statisticsOrNil else {
+            guard
+                let statistics = statisticsOrNil,
+                // If no data is found because of no permissions for example return immediately.
+                // Not possible to check for statistics.start-/ endData because it can be nil despite being non-optional.
+                // This has to do with Objective-C to Swift bridge and should be fixed by Apple.
+                statistics.sumQuantity() != nil
+            else {
                 result(FlutterError(code: self.TAG, message: "Results are null", details: error))
                 return
             }
