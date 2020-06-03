@@ -61,7 +61,7 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
         if #available(iOS 12.0, *) {
             healthStore!.getRequestStatusForAuthorization(toShare: [], read: Set(request.sampleTypes)) { (status, error) in
                 guard error == nil else {
-                    result(FlutterError(code: self.TAG, message: "hasPermissions", details: error))
+                    result(FlutterError(code: self.TAG, message: "hasPermissions", details: error?.localizedDescription))
                     return
                 }
                 
@@ -188,7 +188,7 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
             _, samplesOrNil, error in
             
             guard var samples = samplesOrNil else {
-                result(FlutterError(code: self.TAG, message: "Results are null", details: error))
+                result(FlutterError(code: self.TAG, message: "Results are null", details: error?.localizedDescription))
                 return
             }
             
@@ -224,7 +224,7 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
                 // This has to do with Objective-C to Swift bridge and should be fixed by Apple.
                 statistics.sumQuantity() != nil
             else {
-                result(FlutterError(code: self.TAG, message: "Results are null", details: error))
+                result(FlutterError(code: self.TAG, message: "Results are null", details: error?.localizedDescription))
                 return
             }
             
