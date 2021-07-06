@@ -8,12 +8,14 @@ class FitData {
   final bool userEntered;
   final String productType;
 
-  FitData(this.value,
-      this.dateFrom,
-      this.dateTo,
-      this.source,
-      this.userEntered,
-      this.productType,);
+  FitData(
+    this.value,
+    this.dateFrom,
+    this.dateTo,
+    this.source,
+    this.userEntered,
+    this.productType,
+  );
 
   FitData.fromJson(Map<dynamic, dynamic> json)
       : value = json['value'],
