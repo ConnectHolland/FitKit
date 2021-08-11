@@ -293,7 +293,7 @@ class FitKitPlugin(private val registrar: Registrar) : MethodCallHandler {
                 .filterNot { it.originalDataSource.streamName.isNullOrEmpty() }
                 .groupingBy { it.originalDataSource.streamName }
                 .eachCount()
-                .maxBy { it.value }
+                .maxByOrNull { it.value }
                 ?.key ?: session.name ?: ""
 
         return mapOf(
