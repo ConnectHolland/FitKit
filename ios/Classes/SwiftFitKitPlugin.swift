@@ -216,15 +216,34 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
         
         let statisticsQuery = HKStatisticsQuery(quantityType: quantityType, quantitySamplePredicate: predicate, options: .cumulativeSum) {
             _, statisticsOrNil, error in
+            
+            // Only return an error when there's an actual error, to prevent returning an error
+            // when there're simply no samples found with the given predicate.
+            if let error = error as? NSError, error.code != 11 { // HKError.Code.errorNoData (available iOS 14+ only)
+                result(FlutterError(code: self.TAG, message: "Results are null", details: error.localizedDescription))
+                return
+            }
+            
+            // When there's no real error and statistics are nil, return a result with 0 steps.
             guard
-                error == nil,
                 let statistics = statisticsOrNil,
                 // If no data is found because of no permissions for example return immediately.
                 // Not possible to check for statistics.start-/ endData because it can be nil despite being non-optional.
                 // This has to do with Objective-C to Swift bridge and should be fixed by Apple.
                 statistics.sumQuantity() != nil
             else {
-                result(FlutterError(code: self.TAG, message: "Results are null", details: error?.localizedDescription))
+                let dict = NSDictionary(dictionary: [
+                    "value": 0,
+                    "date_from": Int(request.dateFrom.timeIntervalSince1970 * 1000),
+                    "date_to": Int(request.dateTo.timeIntervalSince1970 * 1000),
+                    // TODO: HKStatistics contains array of sources. Discuss what to return here. For now, just return empty string.
+                    "source": "",
+                    // TODO: Probably can be removed.
+                    "user_entered": false,
+                    // TODO: Remove ProductType
+                    "product_type": ""
+                ])
+                result([dict])
                 return
             }
             
